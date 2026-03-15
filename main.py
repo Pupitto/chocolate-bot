@@ -1,28 +1,23 @@
 import os
-import logging
 import asyncio
+import logging
 from flask import Flask, request
-import telegram
+from telegram import Bot
 
 logging.basicConfig(level=logging.INFO)
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 MAMA_CHAT_ID = 2115293517
-
-app = Flask(__name__)
 active_clients = {}
 
-async def send_message(chat_id, text):
-    bot = telegram.Bot(token=BOT_TOKEN)
-    async with bot:
-        await bot.send_message(chat_id=chat_id, text=text)
+app = Flask(__name__)
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
     data = request.get_json()
     if not data or "message" not in data:
         return "ok"
-    
+
     message = data["message"]
     chat_id = message["chat"]["id"]
     text = message.get("text", "")
@@ -31,16 +26,28 @@ def webhook():
     username = user.get("username", "")
     username_str = f"@{username}" if username else "без username"
 
+    bot = Bot(token=BOT_TOKEN)
+
     if chat_id == MAMA_CHAT_ID:
         if active_clients:
             last_client_id = list(active_clients.keys())[-1]
-            asyncio.run(send_message(last_client_id, text))
+            asyncio.run(bot.send_message(chat_id=last_client_id, text=text))
         else:
-            asyncio.run(send_message(MAMA_CHAT_ID, "Нет активных клиентов."))
+            asyncio.run(bot.send_message(chat_id=MAMA_CHAT_ID, text="Нет активных клиентов."))
     else:
         active_clients[chat_id] = first_name
-        asyncio.run(send_message(
-            MAMA_CHAT_ID,
-            f"👤 {first_name} ({username_str}):\n{text}"
+        asyncio.run(bot.send_message(
+            chat_id=MAMA_CHAT_ID,
+            text=f"👤 {first_name} ({username_str}):\n{text}"
         ))
-        asyncio.run
+        asyncio.run(bot.send_message(chat_id=chat_id, text="Сообщение отправлено! Ожидайте ответа."))
+
+    return "ok"
+
+@app.route("/ping")
+def ping():
+    return "alive"
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
